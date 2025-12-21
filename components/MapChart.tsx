@@ -120,47 +120,21 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
         trigger: 'item',
         formatter: '{b}: {c}分'
       },
-      geo: {
-        map: 'china',
-        roam: true,
-        zoom: 1.2,
-        center: [104, 36],
-        label: {
-          show: true,
-          fontSize: 10,
-          color: '#000',
-          formatter: (params: any) => {
-            // Use province abbreviation instead of full name
-            return PROVINCE_ABBR[params.name] || params.name;
-          }
-        },
-        emphasis: {
-          label: {
-            show: true,
-            color: '#007AFF',
-            fontWeight: 'bold',
-            formatter: (params: any) => {
-              return PROVINCE_ABBR[params.name] || params.name;
-            }
-          },
-          itemStyle: {
-            areaColor: 'rgba(0, 122, 255, 0.3)'
-          }
-        },
-        itemStyle: {
-          areaColor: '#F2F2F7',
-          borderColor: '#8E8E93',
-          borderWidth: 1
-        }
-      },
       series: [
         {
           type: 'map',
           map: 'china',
-          data: provinceData,
-          geoIndex: 0,
+          roam: true,
+          zoom: 1.2,
+          center: [104, 36],
           label: {
-            show: false
+            show: true,
+            fontSize: 10,
+            color: '#000',
+            formatter: (params: any) => {
+              // Use province abbreviation instead of full name
+              return PROVINCE_ABBR[params.name] || params.name;
+            }
           },
           emphasis: {
             label: {
@@ -174,7 +148,13 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
             itemStyle: {
               areaColor: 'rgba(0, 122, 255, 0.3)'
             }
-          }
+          },
+          itemStyle: {
+            areaColor: '#F2F2F7',
+            borderColor: '#8E8E93',
+            borderWidth: 1
+          },
+          data: provinceData
         }
       ]
     };
@@ -264,61 +244,42 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
         trigger: 'item',
         formatter: '{b}'
       },
-      geo: {
-        map: `${province.name}-cities`,
-        roam: true,
-        zoom: zoom,
-        center: provinceCenter,
-        scaleLimit: {
-          min: 0.5,
-          max: 10
-        },
-        label: {
-          show: true,
-          fontSize: 10,
-          color: '#000',
-          position: 'inside',
-          formatter: (params: any) => params.name
-        },
-        emphasis: {
-          label: {
-            show: true,
-            color: '#007AFF',
-            fontWeight: 'bold',
-            fontSize: 12
-          },
-          itemStyle: {
-            areaColor: 'rgba(0, 122, 255, 0.3)'
-          }
-        }
-      },
       series: [
         {
           type: 'map',
           map: `${province.name}-cities`,
-          geoIndex: 0,
+          roam: true,
+          zoom: zoom,
+          center: provinceCenter,
+          scaleLimit: {
+            min: 0.5,
+            max: 10
+          },
           data: cityData,
           label: {
-          show: true,
-          fontSize: 10,
-          color: '#000',
-          position: 'inside',
-          formatter: (params: any) => params.name
-        },
-        emphasis: {
-          label: {
             show: true,
-            color: '#007AFF',
-            fontWeight: 'bold',
-            fontSize: 12
-          }
-        },
-        itemStyle: {
-          color: (params: any) => {
-            const level = params.data?.value || TravelLevel.Untouched;
-            return LEVEL_CONFIG[level].color;
+            fontSize: 10,
+            color: '#000',
+            position: 'inside',
+            formatter: (params: any) => params.name
           },
-          borderColor: '#fff',
+          emphasis: {
+            label: {
+              show: true,
+              color: '#007AFF',
+              fontWeight: 'bold',
+              fontSize: 12
+            },
+            itemStyle: {
+              areaColor: 'rgba(0, 122, 255, 0.3)'
+            }
+          },
+          itemStyle: {
+            color: (params: any) => {
+              const level = params.data?.value || TravelLevel.Untouched;
+              return LEVEL_CONFIG[level].color;
+            },
+            borderColor: '#fff',
             borderWidth: 1
           }
         }
