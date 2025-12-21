@@ -117,8 +117,7 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
     
     const option: echarts.EChartsOption = {
       tooltip: {
-        trigger: 'item',
-        formatter: '{b}: {c}分'
+        trigger: 'none' // 禁用tooltip
       },
       series: [
         {
@@ -137,17 +136,7 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
             }
           },
           emphasis: {
-            label: {
-              show: true,
-              color: '#007AFF',
-              fontWeight: 'bold',
-              formatter: (params: any) => {
-                return PROVINCE_ABBR[params.name] || params.name;
-              }
-            },
-            itemStyle: {
-              areaColor: 'rgba(0, 122, 255, 0.3)'
-            }
+            disabled: true // 禁用高亮效果
           },
           itemStyle: {
             borderColor: '#8E8E93',
@@ -244,8 +233,7 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
     
     const option: echarts.EChartsOption = {
       tooltip: {
-        trigger: 'item',
-        formatter: '{b}'
+        trigger: 'none' // 禁用tooltip
       },
       series: [
         {
@@ -267,15 +255,7 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
             formatter: (params: any) => params.name
           },
           emphasis: {
-            label: {
-              show: true,
-              color: '#007AFF',
-              fontWeight: 'bold',
-              fontSize: 12
-            },
-            itemStyle: {
-              areaColor: 'rgba(0, 122, 255, 0.3)'
-            }
+            disabled: true // 禁用高亮效果
           },
           itemStyle: {
             borderColor: '#fff',
