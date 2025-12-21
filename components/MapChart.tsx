@@ -253,8 +253,11 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
     // Adjust zoom based on province size (larger provinces need smaller zoom)
     let zoom = 3;
     const provinceArea = province.area || 100000;
-    if (provinceArea > 500000) zoom = 2;
-    if (provinceArea > 1000000) zoom = 1.5;
+    if (provinceArea > 500000) zoom = 1.5;
+    if (provinceArea > 1000000) zoom = 1;
+    
+    // 为青海省单独调整缩放级别，确保完整显示
+    if (province.name === '青海省') zoom = 1.2;
     
     const option: echarts.EChartsOption = {
       tooltip: {
@@ -267,7 +270,7 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
         zoom: zoom,
         center: provinceCenter,
         scaleLimit: {
-          min: 1,
+          min: 0.5,
           max: 10
         },
         label: {
@@ -287,11 +290,6 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
           itemStyle: {
             areaColor: 'rgba(0, 122, 255, 0.3)'
           }
-        },
-        itemStyle: {
-          areaColor: '#F2F2F7',
-          borderColor: '#8E8E93',
-          borderWidth: 1
         }
       },
       series: [
