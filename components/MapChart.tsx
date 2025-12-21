@@ -198,8 +198,9 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
     echarts.registerMap(`${province.name}-cities`, provinceMapData as any);
     
     // Prepare city data for map series
-    const cityData = provinceCityFeatures.map((cityFeature: any) => {
-      const cityId = `city-${cityFeature.properties.adcode}`;
+    const cityData = provinceCityFeatures.map((cityFeature: any, cIndex: number) => {
+      // 生成与 geoData.ts 完全一致的城市ID，确保与 progress 数据匹配
+      const cityId = `city-${cityFeature.properties.adcode || `${province.name}-${cIndex}`}`;
       const level = progress[cityId] || TravelLevel.Untouched;
       const color = LEVEL_CONFIG[level].color;
       
@@ -254,9 +255,7 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
             position: 'inside',
             formatter: (params: any) => params.name
           },
-          emphasis: {
-            disabled: true // 禁用高亮效果
-          },
+          emphasis: {},
           itemStyle: {
             borderColor: '#fff',
             borderWidth: 1
