@@ -5,6 +5,44 @@ import { Province, City, UserProgress, TravelLevel, LEVEL_CONFIG } from '../type
 import { PROVINCE_DATA, getTopoJSONData } from '../services/geoData';
 import { ArrowLeft } from 'lucide-react';
 
+// Province full name to abbreviation mapping
+const PROVINCE_ABBR: Record<string, string> = {
+  "北京市": "京",
+  "天津市": "津",
+  "河北省": "冀",
+  "山西省": "晋",
+  "内蒙古自治区": "蒙",
+  "辽宁省": "辽",
+  "吉林省": "吉",
+  "黑龙江省": "黑",
+  "上海市": "沪",
+  "江苏省": "苏",
+  "浙江省": "浙",
+  "安徽省": "皖",
+  "福建省": "闽",
+  "江西省": "赣",
+  "山东省": "鲁",
+  "河南省": "豫",
+  "湖北省": "鄂",
+  "湖南省": "湘",
+  "广东省": "粤",
+  "广西壮族自治区": "桂",
+  "海南省": "琼",
+  "重庆市": "渝",
+  "四川省": "川",
+  "贵州省": "贵",
+  "云南省": "云",
+  "西藏自治区": "藏",
+  "陕西省": "陕",
+  "甘肃省": "甘",
+  "青海省": "青",
+  "宁夏回族自治区": "宁",
+  "新疆维吾尔自治区": "新",
+  "台湾省": "台",
+  "香港特别行政区": "港",
+  "澳门特别行政区": "澳"
+};
+
 interface MapChartProps {
   progress: UserProgress;
   onCityClick: (city: City) => void;
@@ -90,13 +128,20 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
         label: {
           show: true,
           fontSize: 10,
-          color: '#000'
+          color: '#000',
+          formatter: (params: any) => {
+            // Use province abbreviation instead of full name
+            return PROVINCE_ABBR[params.name] || params.name;
+          }
         },
         emphasis: {
           label: {
             show: true,
             color: '#007AFF',
-            fontWeight: 'bold'
+            fontWeight: 'bold',
+            formatter: (params: any) => {
+              return PROVINCE_ABBR[params.name] || params.name;
+            }
           },
           itemStyle: {
             areaColor: 'rgba(0, 122, 255, 0.3)'
@@ -121,26 +166,15 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
             label: {
               show: true,
               color: '#007AFF',
-              fontWeight: 'bold'
+              fontWeight: 'bold',
+              formatter: (params: any) => {
+                return PROVINCE_ABBR[params.name] || params.name;
+              }
             },
             itemStyle: {
               areaColor: 'rgba(0, 122, 255, 0.3)'
             }
           }
-        }
-      ],
-      dataZoom: [
-        {
-          type: 'inside',
-          xAxisIndex: 0,
-          start: 0,
-          end: 100
-        },
-        {
-          type: 'inside',
-          yAxisIndex: 0,
-          start: 0,
-          end: 100
         }
       ]
     };
@@ -163,7 +197,7 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
   const renderProvinceMap = (province: Province) => {
     if (!chartInstanceRef.current) return;
     
-    // Get province features from TopoJSON with type assertions
+    // Get TopoJSON data with type assertions
     const topoData = getTopoJSONData();
     const geoData = topojson.feature(topoData as any, topoData.objects.province as any) as any;
     
@@ -175,25 +209,52 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
       return;
     }
     
-    // Create a simple province map (in a real app, you would have province-level TopoJSON)
+    // Get province adcode for filtering cities
+    const provinceAdcode = provinceFeature.properties.adcode;
+    
+    // Get and filter city features for this province
+    const cityFeatures = (topojson.feature(topoData as any, topoData.objects.city as any) as any).features;
+    const provinceCityFeatures = cityFeatures.filter((cityFeature: any) => {
+      // Filter cities by province adcode from parent.adcode or acroutes
+      const cityProvinceAdcode = cityFeature.properties.parent?.adcode || cityFeature.properties.acroutes?.[1];
+      return cityProvinceAdcode === provinceAdcode;
+    });
+    
+    // Create a province map with cities
     const provinceMapData = {
       type: 'FeatureCollection',
-      features: [provinceFeature]
+      features: [...provinceCityFeatures]
     };
     
-    // Register province map
-    echarts.registerMap(province.name, provinceMapData as any);
+    // Register province map with cities
+    echarts.registerMap(`${province.name}-cities`, provinceMapData as any);
     
-    // Prepare city data
-    const cityData = province.cities.map(city => {
-      const level = progress[city.id] || TravelLevel.Untouched;
+    // Prepare city data for map series
+    const cityData = provinceCityFeatures.map((cityFeature: any) => {
+      const cityId = `city-${cityFeature.properties.adcode}`;
+      const level = progress[cityId] || TravelLevel.Untouched;
       
       return {
-        name: city.name,
-        value: [city.x, city.y, level],
-        city: city
-      } as any; // Add type assertion
+        name: cityFeature.properties.name,
+        value: level,
+        city: {
+          id: cityId,
+          name: cityFeature.properties.name,
+          provinceId: province.id,
+          x: cityFeature.properties.center?.[0] || 0,
+          y: cityFeature.properties.center?.[1] || 0
+        } as City
+      };
     });
+    
+    // Calculate appropriate zoom and center
+    const provinceCenter = provinceFeature.properties.centroid || provinceFeature.properties.center || [104, 36];
+    
+    // Adjust zoom based on province size (larger provinces need smaller zoom)
+    let zoom = 3;
+    const provinceArea = province.area || 100000;
+    if (provinceArea > 500000) zoom = 2;
+    if (provinceArea > 1000000) zoom = 1.5;
     
     const option: echarts.EChartsOption = {
       tooltip: {
@@ -201,50 +262,66 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
         formatter: '{b}'
       },
       geo: {
-        map: province.name,
+        map: `${province.name}-cities`,
         roam: true,
-        zoom: 1.5,
-        center: [province.x, province.y],
+        zoom: zoom,
+        center: provinceCenter,
+        scaleLimit: {
+          min: 1,
+          max: 10
+        },
         label: {
           show: true,
-          fontSize: 12,
-          color: '#000'
+          fontSize: 10,
+          color: '#000',
+          position: 'inside',
+          formatter: (params: any) => params.name
+        },
+        emphasis: {
+          label: {
+            show: true,
+            color: '#007AFF',
+            fontWeight: 'bold',
+            fontSize: 12
+          },
+          itemStyle: {
+            areaColor: 'rgba(0, 122, 255, 0.3)'
+          }
         },
         itemStyle: {
           areaColor: '#F2F2F7',
-          borderColor: '#007AFF',
-          borderWidth: 2
+          borderColor: '#8E8E93',
+          borderWidth: 1
         }
       },
       series: [
         {
-          type: 'scatter',
-          coordinateSystem: 'geo',
+          type: 'map',
+          map: `${province.name}-cities`,
+          geoIndex: 0,
           data: cityData,
-          symbolSize: 15,
+          label: {
+          show: true,
+          fontSize: 10,
+          color: '#000',
+          position: 'inside',
+          formatter: (params: any) => params.name
+        },
+        emphasis: {
           label: {
             show: true,
-            position: 'top',
-            fontSize: 10,
-            formatter: '{b}'
+            color: '#007AFF',
+            fontWeight: 'bold',
+            fontSize: 12
+          }
+        },
+        itemStyle: {
+          color: (params: any) => {
+            const level = params.data?.value || TravelLevel.Untouched;
+            return LEVEL_CONFIG[level].color;
           },
-          itemStyle: {
-            color: (params: any) => {
-              const level = params.data.value[2];
-              return LEVEL_CONFIG[level].color;
-            },
-            borderColor: '#fff',
-            borderWidth: 2
-          },
-          emphasis: {
-            itemStyle: {
-              // symbolSize is controlled by the series symbolSize, not emphasis
-            },
-            label: {
-              show: true,
-              fontSize: 12,
-              fontWeight: 'bold'
-            }
+          borderColor: '#fff',
+            borderWidth: 1
           }
         }
       ]
