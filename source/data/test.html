@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>珠宝盒设计图可视化渲染</title>
+    <style>
+        body { margin: 0; background: #f4f4f9; font-family: sans-serif; overflow: hidden; }
+        canvas { display: block; cursor: crosshair; }
+        #tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 4px;
+            pointer-events: none;
+            display: none;
+            font-size: 14px;
+            z-index: 10;
+        }
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        h3 { margin: 0 0 10px 0; font-size: 16px; color: #333; }
+    </style>
+</head>
+<body>
+
+<div class="controls">
+    <h3>设计组件分布图</h3>
+    <small>提示：鼠标悬停查看组件名称</small>
+</div>
+<div id="tooltip"></div>
+<canvas id="vizCanvas"></canvas>
+
+<script>
+const jsonData = [
+    {"box_2d": [55, 62, 946, 927], "label": "wide landscape jewelry box design blue"},
+    {"box_2d": [75, 517, 497, 922], "label": "exploded view showing left-right split"},
+    {"box_2d": [100, 521, 310, 680], "label": "left shell half"},
+    {"box_2d": [80, 685, 290, 830], "label": "right shell half"},
+    {"box_2d": [180, 655, 305, 695], "label": "vertical puzzle cut seam in center"},
+    {"box_2d": [277, 560, 477, 697], "label": "left drawer tub"},
+    {"box_2d": [287, 705, 472, 847], "label": "right drawer tub"},
+    {"box_2d": [382, 792, 495, 922], "label": "drawer faceplate printed diagonally"},
+    {"box_2d": [390, 847, 437, 882], "label": "single central handle"},
+    {"box_2d": [542, 60, 930, 482], "label": "assembled wide trunk view"},
+    {"box_2d": [552, 67, 700, 472], "label": "top decorative lid split left-right"},
+    {"box_2d": [665, 75, 807, 470], "label": "middle drawer layer wide front"},
+    {"box_2d": [752, 75, 915, 472], "label": "bottom base layer"},
+    {"box_2d": [560, 65, 617, 115], "label": "gold corner protector"},
+    {"box_2d": [712, 257, 762, 292], "label": "central handle"},
+    {"box_2d": [575, 762, 905, 955], "label": "A1 mini build plate layout diagram"},
+    {"box_2d": [595, 857, 867, 890], "label": "drawer faceplate placement diagonal"},
+    {"box_2d": [590, 770, 772, 845], "label": "left shell part vertically placed"},
+    {"box_2d": [587, 895, 760, 947], "label": "right shell part vertically placed"},
+    {"box_2d": [655, 505, 852, 712], "label": "tray placement visual 21cm wide"},
+    {"box_2d": [680, 510, 832, 697], "label": "internal velvet tray 210x125mm"}
+];
+
+const canvas = document.getElementById('vizCanvas');
+const ctx = canvas.getContext('2d');
+const tooltip = document.getElementById('tooltip');
+
+function getColor(label) {
+    if (label.includes('shell')) return 'rgba(52, 152, 219, 0.6)';
+    if (label.includes('drawer')) return 'rgba(46, 204, 113, 0.6)';
+    if (label.includes('handle')) return 'rgba(231, 76, 60, 0.6)';
+    if (label.includes('plate') || label.includes('layout')) return 'rgba(149, 165, 166, 0.3)';
+    return 'rgba(155, 89, 182, 0.4)';
+}
+
+function init() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    draw();
+}
+
+function draw(hoverItem = null) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // 计算缩放比例，保持纵横比并留白
+    const scale = Math.min(canvas.width, canvas.height) / 1050;
+    const offsetX = (canvas.width - 1000 * scale) / 2;
+    const offsetY = (canvas.height - 1000 * scale) / 2;
+
+    jsonData.forEach(item => {
+        const [ymin, xmin, ymax, xmax] = item.box_2d;
+        const x = xmin * scale + offsetX;
+        const y = ymin * scale + offsetY;
+        const w = (xmax - xmin) * scale;
+        const h = (ymax - ymin) * scale;
+
+        const isHovered = hoverItem === item;
+        
+        ctx.strokeStyle = isHovered ? '#000' : getColor(item.label).replace('0.6', '1');
+        ctx.lineWidth = isHovered ? 3 : 1.5;
+        ctx.fillStyle = isHovered ? getColor(item.label).replace('0.6', '0.8') : getColor(item.label);
+        
+        // 绘制矩形
+        ctx.beginPath();
+        ctx.rect(x, y, w, h);
+        ctx.fill();
+        ctx.stroke();
+
+        // 绘制微型文本标签
+        if (w > 50) {
+            ctx.fillStyle = '#333';
+            ctx.font = `${Math.max(10, 12 * scale)}px Arial`;
+            ctx.fillText(item.label.split(' ')[0], x + 5, y + 15);
+        }
+    });
+}
+
+canvas.addEventListener('mousemove', (e) => {
+    const scale = Math.min(canvas.width, canvas.height) / 1050;
+    const offsetX = (canvas.width - 1000 * scale) / 2;
+    const offsetY = (canvas.height - 1000 * scale) / 2;
+
+    let found = null;
+    // 反向遍历，保证选到最上层的组件
+    for (let i = jsonData.length - 1; i >= 0; i--) {
+        const item = jsonData[i];
+        const [ymin, xmin, ymax, xmax] = item.box_2d;
+        const x = xmin * scale + offsetX;
+        const y = ymin * scale + offsetY;
+        const w = (xmax - xmin) * scale;
+        const h = (ymax - ymin) * scale;
+
+        if (e.clientX >= x && e.clientX <= x + w && e.clientY >= y && e.clientY <= y + h) {
+            found = item;
+            break;
+        }
+    }
+
+    if (found) {
+        tooltip.style.display = 'block';
+        tooltip.style.left = e.clientX + 15 + 'px';
+        tooltip.style.top = e.clientY + 15 + 'px';
+        tooltip.innerText = found.label;
+        draw(found);
+    } else {
+        tooltip.style.display = 'none';
+        draw();
+    }
+});
+
+window.addEventListener('resize', init);
+init();
+</script>
+
+</body>
+</html>

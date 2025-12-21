@@ -1,7 +1,8 @@
 import React, { useRef, useEffect, useState } from 'react';
-import * as d3 from 'd3';
+import * as echarts from 'echarts';
+import * as topojson from 'topojson-client';
 import { Province, City, UserProgress, TravelLevel, LEVEL_CONFIG } from '../types';
-import { PROVINCE_DATA } from '../services/geoData';
+import { PROVINCE_DATA, getTopoJSONData } from '../services/geoData';
 import { ArrowLeft } from 'lucide-react';
 
 interface MapChartProps {
@@ -10,124 +11,267 @@ interface MapChartProps {
 }
 
 const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const contentRef = useRef<SVGGElement>(null);
+  const chartRef = useRef<HTMLDivElement>(null);
+  const chartInstanceRef = useRef<echarts.ECharts | null>(null);
   const [activeProvince, setActiveProvince] = useState<Province | null>(null);
-  const activeProvinceRef = useRef<Province | null>(null);
   
-  // Track if we are currently dragging to prevent click events
-  const isDragging = useRef(false);
-
-  // Constants for map dimensions
-  const WIDTH = 800;
-  const HEIGHT = 1000;
-
-  // Sync ref for D3 callbacks
+  // Initialize ECharts instance
   useEffect(() => {
-    activeProvinceRef.current = activeProvince;
-  }, [activeProvince]);
-
-  const getProvinceColor = (province: Province) => {
-    let totalScore = 0;
-    let maxScore = province.cities.length * 3;
-    
-    province.cities.forEach(city => {
-      totalScore += (progress[city.id] || 0);
-    });
-
-    if (totalScore === 0) return '#FFFFFF'; 
-
-    const intensity = Math.max(0.1, totalScore / maxScore);
-    return d3.interpolateRgb("rgba(242, 242, 247, 1)", "rgba(0, 122, 255, 1)")(intensity);
-  };
-
-  const getCityColor = (cityId: string) => {
-    const level = progress[cityId] || TravelLevel.Untouched;
-    return LEVEL_CONFIG[level].color;
-  };
-
-  // Initialize Zoom Behavior
-  useEffect(() => {
-    const svg = d3.select(svgRef.current);
-    const content = d3.select(contentRef.current);
-
-    const zoomBehavior = d3.zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.8, 8]) // Allow slightly wider zoom range
-      .translateExtent([[-400, -400], [WIDTH + 400, HEIGHT + 400]])
-      .on("start", () => {
-        isDragging.current = false;
-      })
-      .on("zoom", (event) => {
-        isDragging.current = true;
-        content.attr("transform", event.transform);
-      })
-      .on("end", (event) => {
-        setTimeout(() => { isDragging.current = false; }, 50);
-        
-        // "Pinch to Back" Logic
-        if (activeProvinceRef.current && event.transform.k < 1.5) {
-           setActiveProvince(null);
-        }
-      });
-
-    svg.call(zoomBehavior);
-
-    if (!activeProvince) {
-      // SHIFT MAP DOWN: translate(0, 240) to accommodate the lower stats card
-      // This ensures the map is visible below the stats card initially
-      const initialTransform = d3.zoomIdentity.translate(80, 320);
-      // @ts-ignore
-      svg.call(zoomBehavior.transform, initialTransform);
-    }
-  }, []); 
-
-  // Handle Focus / Drill Down Transitions
-  useEffect(() => {
-    const svg = d3.select(svgRef.current);
-    // Re-select logic to apply transform
-    const zoomBehavior = d3.zoom().on("zoom", (event) => {
-       d3.select(contentRef.current).attr("transform", event.transform);
-    });
-    
-    if (activeProvince) {
-      // Zoom to Province
-      const p = activeProvince;
-      const scale = 3.5; 
-      const x = -(p.x + p.width / 2) * scale + WIDTH / 2;
-      const y = -(p.y + p.height / 2) * scale + HEIGHT / 2;
+    if (chartRef.current) {
+      const chartInstance = echarts.init(chartRef.current);
+      chartInstanceRef.current = chartInstance;
       
-      const transform = d3.zoomIdentity
-        .translate(x, y)
-        .scale(scale);
-
-      svg.transition()
-        .duration(800)
-        .ease(d3.easeCubicInOut)
-        // @ts-ignore
-        .call(zoomBehavior.transform, transform);
-    } else {
-      // Reset to Global View (with downward shift)
-      svg.transition()
-        .duration(800)
-        .ease(d3.easeCubicInOut)
-        // @ts-ignore
-        .call(zoomBehavior.transform, d3.zoomIdentity.translate(80, 320));
+      // Handle window resize
+      const handleResize = () => {
+        chartInstance.resize();
+      };
+      
+      window.addEventListener('resize', handleResize);
+      
+      return () => {
+        window.removeEventListener('resize', handleResize);
+        chartInstance.dispose();
+      };
     }
-  }, [activeProvince]);
-
-  const handleProvinceClick = (province: Province) => {
-    if (isDragging.current) return;
-    setActiveProvince(province);
+  }, []);
+  
+  // Prepare data for ECharts
+  const prepareMapData = () => {
+    // Get province features from TopoJSON with type assertions
+    const topoData = getTopoJSONData();
+    const geoData = topojson.feature(topoData as any, topoData.objects.province as any);
+    
+    // Register map with ECharts
+    echarts.registerMap('china', geoData as any);
+    
+    // Prepare province data with progress
+    const provinceData = PROVINCE_DATA.map(province => {
+      let totalScore = 0;
+      let maxScore = province.cities.length * 3;
+      
+      province.cities.forEach(city => {
+        totalScore += (progress[city.id] || 0);
+      });
+      
+      const intensity = Math.max(0.1, totalScore / maxScore);
+      // 使用颜色字符串插值
+      const color = `rgba(242, 242, 247, ${1 - intensity})`;
+      
+      return {
+        name: province.name,
+        value: totalScore,
+        itemStyle: {
+          areaColor: color,
+          borderColor: "#8E8E93",
+          borderWidth: 1
+        }
+      };
+    });
+    
+    return provinceData;
   };
-
-  const handleCityClick = (e: React.MouseEvent, city: City) => {
-    e.stopPropagation();
-    if (isDragging.current) return;
-    onCityClick(city);
+  
+  // Render China map
+  const renderChinaMap = () => {
+    if (!chartInstanceRef.current) return;
+    
+    const provinceData = prepareMapData();
+    
+    const option: echarts.EChartsOption = {
+      tooltip: {
+        trigger: 'item',
+        formatter: '{b}: {c}分'
+      },
+      geo: {
+        map: 'china',
+        roam: true,
+        zoom: 1.2,
+        center: [104, 36],
+        label: {
+          show: true,
+          fontSize: 10,
+          color: '#000'
+        },
+        emphasis: {
+          label: {
+            show: true,
+            color: '#007AFF',
+            fontWeight: 'bold'
+          },
+          itemStyle: {
+            areaColor: 'rgba(0, 122, 255, 0.3)'
+          }
+        },
+        itemStyle: {
+          areaColor: '#F2F2F7',
+          borderColor: '#8E8E93',
+          borderWidth: 1
+        }
+      },
+      series: [
+        {
+          type: 'map',
+          map: 'china',
+          data: provinceData,
+          geoIndex: 0,
+          label: {
+            show: false
+          },
+          emphasis: {
+            label: {
+              show: true,
+              color: '#007AFF',
+              fontWeight: 'bold'
+            },
+            itemStyle: {
+              areaColor: 'rgba(0, 122, 255, 0.3)'
+            }
+          }
+        }
+      ],
+      dataZoom: [
+        {
+          type: 'inside',
+          xAxisIndex: 0,
+          start: 0,
+          end: 100
+        },
+        {
+          type: 'inside',
+          yAxisIndex: 0,
+          start: 0,
+          end: 100
+        }
+      ]
+    };
+    
+    chartInstanceRef.current.setOption(option);
+    
+    // Add province click event
+    chartInstanceRef.current.off('click');
+    chartInstanceRef.current.on('click', (params: echarts.ECElementEvent) => {
+      if (params.name) {
+        const province = PROVINCE_DATA.find(p => p.name === params.name);
+        if (province) {
+          setActiveProvince(province);
+        }
+      }
+    });
   };
-
-  const handleBackClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  
+  // Render province map with cities
+  const renderProvinceMap = (province: Province) => {
+    if (!chartInstanceRef.current) return;
+    
+    // Get province features from TopoJSON with type assertions
+    const topoData = getTopoJSONData();
+    const geoData = topojson.feature(topoData as any, topoData.objects.province as any) as any;
+    
+    // Find the specific province feature
+    const provinceFeature = geoData.features.find((f: any) => f.properties.name === province.name);
+    
+    if (!provinceFeature) {
+      console.error(`Province feature not found: ${province.name}`);
+      return;
+    }
+    
+    // Create a simple province map (in a real app, you would have province-level TopoJSON)
+    const provinceMapData = {
+      type: 'FeatureCollection',
+      features: [provinceFeature]
+    };
+    
+    // Register province map
+    echarts.registerMap(province.name, provinceMapData as any);
+    
+    // Prepare city data
+    const cityData = province.cities.map(city => {
+      const level = progress[city.id] || TravelLevel.Untouched;
+      
+      return {
+        name: city.name,
+        value: [city.x, city.y, level],
+        city: city
+      } as any; // Add type assertion
+    });
+    
+    const option: echarts.EChartsOption = {
+      tooltip: {
+        trigger: 'item',
+        formatter: '{b}'
+      },
+      geo: {
+        map: province.name,
+        roam: true,
+        zoom: 1.5,
+        center: [province.x, province.y],
+        label: {
+          show: true,
+          fontSize: 12,
+          color: '#000'
+        },
+        itemStyle: {
+          areaColor: '#F2F2F7',
+          borderColor: '#007AFF',
+          borderWidth: 2
+        }
+      },
+      series: [
+        {
+          type: 'scatter',
+          coordinateSystem: 'geo',
+          data: cityData,
+          symbolSize: 15,
+          label: {
+            show: true,
+            position: 'top',
+            fontSize: 10,
+            formatter: '{b}'
+          },
+          itemStyle: {
+            color: (params: any) => {
+              const level = params.data.value[2];
+              return LEVEL_CONFIG[level].color;
+            },
+            borderColor: '#fff',
+            borderWidth: 2
+          },
+          emphasis: {
+            itemStyle: {
+              // symbolSize is controlled by the series symbolSize, not emphasis
+            },
+            label: {
+              show: true,
+              fontSize: 12,
+              fontWeight: 'bold'
+            }
+          }
+        }
+      ]
+    };
+    
+    chartInstanceRef.current.setOption(option);
+    
+    // Add city click event
+    chartInstanceRef.current.off('click');
+    chartInstanceRef.current.on('click', (params: echarts.ECElementEvent) => {
+      const data = params.data as any;
+      if (data?.city) {
+        onCityClick(data.city as City);
+      }
+    });
+  };
+  
+  // Update chart when activeProvince or progress changes
+  useEffect(() => {
+    if (activeProvince) {
+      renderProvinceMap(activeProvince);
+    } else {
+      renderChinaMap();
+    }
+  }, [activeProvince, progress]);
+  
+  const handleBackClick = () => {
     setActiveProvince(null);
   };
 
@@ -146,111 +290,11 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
         </button>
       </div>
 
-      <svg 
-        ref={svgRef}
-        viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-        className="w-full h-full touch-none cursor-move"
-      >
-        <g ref={contentRef}>
-          <g className="map-layer">
-            {PROVINCE_DATA.map((province) => {
-              const isActive = activeProvince?.id === province.id;
-              
-              // Hide other provinces completely when one is active
-              if (activeProvince && !isActive) return null;
-
-              return (
-                <g 
-                  key={province.id} 
-                  transform={`translate(${province.x}, ${province.y})`}
-                  onClick={() => !activeProvince && handleProvinceClick(province)}
-                  className={`transition-all duration-300 ${!activeProvince ? 'cursor-pointer hover:opacity-90' : ''}`}
-                >
-                  {/* Province Shape */}
-                  <rect
-                    width={province.width}
-                    height={province.height}
-                    rx={12}
-                    fill={getProvinceColor(province)}
-                    stroke={isActive ? "#007AFF" : "#8E8E93"}
-                    strokeWidth={isActive ? 2 : 1} // Thicker border when active
-                    className="transition-all duration-500"
-                    style={{
-                       filter: isActive ? 'drop-shadow(0 10px 15px rgba(0,0,0,0.1))' : 'none'
-                    }}
-                  />
-                  
-                  {/* Province Label (Hide when active to focus on cities) */}
-                  {!isActive && (
-                    <text
-                      x={province.width / 2}
-                      y={province.height / 2}
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                      fontSize={16}
-                      fill="#000"
-                      fontWeight="bold"
-                      className="pointer-events-none select-none"
-                    >
-                      {province.name}
-                    </text>
-                  )}
-
-                  {/* Cities (Only Visible when this province is active) */}
-                  {isActive && (
-                    <g className="animate-in fade-in duration-700">
-                      {province.cities.map((city) => {
-                         const cityLevel = progress[city.id] || 0;
-                         return (
-                          <g 
-                            key={city.id} 
-                            transform={`translate(${city.x}, ${city.y})`}
-                            onClick={(e) => handleCityClick(e, city)}
-                            className="cursor-pointer transition-transform active:scale-95"
-                          >
-                             {/* Touch Area */}
-                            <rect x={-20} y={-20} width={64} height={64} fill="transparent" />
-                            
-                            {/* City Marker - Card Style for "Solid" look */}
-                            <rect
-                              x={-8} y={-8} width={40} height={40} rx={10}
-                              fill={cityLevel > 0 ? getCityColor(city.id) : "white"}
-                              stroke={cityLevel > 0 ? "white" : "#C7C7CC"}
-                              strokeWidth={2}
-                              className="shadow-md"
-                            />
-                            
-                            {/* Icon or Status Indicator inside marker */}
-                            {cityLevel > 0 && (
-                               <circle cx={12} cy={12} r={4} fill="white" fillOpacity={0.5} />
-                            )}
-
-                            {/* City Name - Prominent */}
-                            <text
-                              x={12} y={48}
-                              textAnchor="middle"
-                              fontSize={8}
-                              fill="#000"
-                              fontWeight="800"
-                              className="select-none"
-                              style={{ 
-                                textShadow: '0 2px 4px rgba(255,255,255,0.9)',
-                                letterSpacing: '0.05em'
-                              }}
-                            >
-                              {city.name}
-                            </text>
-                          </g>
-                        );
-                      })}
-                    </g>
-                  )}
-                </g>
-              );
-            })}
-          </g>
-        </g>
-      </svg>
+      {/* ECharts Container */}
+      <div 
+        ref={chartRef}
+        className="w-full h-full"
+      ></div>
     </div>
   );
 };
