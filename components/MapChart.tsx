@@ -150,7 +150,6 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
             }
           },
           itemStyle: {
-            areaColor: '#F2F2F7',
             borderColor: '#8E8E93',
             borderWidth: 1
           },
@@ -213,10 +212,14 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
     const cityData = provinceCityFeatures.map((cityFeature: any) => {
       const cityId = `city-${cityFeature.properties.adcode}`;
       const level = progress[cityId] || TravelLevel.Untouched;
+      const color = LEVEL_CONFIG[level].color;
       
       return {
         name: cityFeature.properties.name,
         value: level,
+        itemStyle: {
+          color: color
+        },
         city: {
           id: cityId,
           name: cityFeature.properties.name,
@@ -275,10 +278,6 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
             }
           },
           itemStyle: {
-            color: (params: any) => {
-              const level = params.data?.value || TravelLevel.Untouched;
-              return LEVEL_CONFIG[level].color;
-            },
             borderColor: '#fff',
             borderWidth: 1
           }
