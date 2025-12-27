@@ -82,29 +82,54 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
     // Register map with ECharts
     echarts.registerMap('china', geoData as any);
     
-    // Prepare province data with progress
-    const provinceData = PROVINCE_DATA.map(province => {
-      let totalScore = 0;
-      let maxScore = province.cities.length * 3;
-      
-      province.cities.forEach(city => {
-        totalScore += (progress[city.id] || 0);
-      });
-      
-      const intensity = Math.max(0.1, totalScore / maxScore);
-      // 使用颜色字符串插值
-      const color = `rgba(242, 242, 247, ${1 - intensity})`;
-      
-      return {
-        name: province.name,
-        value: totalScore,
-        itemStyle: {
-          areaColor: color,
-          borderColor: "#8E8E93",
-          borderWidth: 1
-        }
-      };
+// Apple 系统蓝色常量 (System Blue)
+  const APPLE_BLUE = '17, 110, 251'; 
+  // 页面底色
+  const DEFAULT_BG = '#F2F2F7';
+
+  // Prepare province data with progress
+  const provinceData = PROVINCE_DATA.map(province => {
+    let totalScore = 0;
+    const maxScore = province.cities.length * 3;
+    
+    province.cities.forEach(city => {
+      totalScore += (progress[city.id] || 0);
     });
+    
+    const hasProgress = totalScore > 0;
+    let areaColor = DEFAULT_BG;
+
+    if (hasProgress) {
+      // 计算打卡强度 (0 ~ 1)
+      const intensity = totalScore / maxScore;
+      // 映射透明度：确保有分数时最小透明度为 0.2，满分为 1.0
+      const alpha = 0.2 + (intensity * 0.4);
+      areaColor = `rgba(${APPLE_BLUE}, ${alpha})`;
+    }
+    
+    return {
+      name: province.name,
+      value: totalScore,
+      itemStyle: {
+        areaColor: areaColor,
+        // 如果没有分数，使用稍深一点的灰色边框来勾勒边界
+        borderColor: hasProgress ? 'rgba(0, 122, 255, 0.4)' : "#D1D1D6",
+        borderWidth: 0.8,
+        // 增加极其细微的阴影，使地图从背景中“浮”出来，解决边界不可见问题
+        shadowColor: 'rgba(0, 0, 0, 0.05)',
+        shadowBlur: 5,
+        shadowOffsetY: 2
+      },
+      // 增加悬浮高亮逻辑，增强交互时的边界感知
+      emphasis: {
+        itemStyle: {
+          areaColor: hasProgress ? `rgba(${APPLE_BLUE}, 0.8)` : 'rgba(0, 122, 255, 0.05)',
+          borderColor: 'rgba(0, 122, 255, 0.8)',
+          borderWidth: 1.5
+        }
+      }
+    };
+  });
     
     return provinceData;
   };
@@ -125,6 +150,9 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
           map: 'china',
           roam: true,
           zoom: 1.2,
+          scaleLimit: { min: 1, max: 8 },
+          animationDurationUpdate: 400,
+          animationEasingUpdate: 'cubicOut',
           center: [104, 36],
           label: {
             show: true,
@@ -134,6 +162,9 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
               // Use province abbreviation instead of full name
               return PROVINCE_ABBR[params.name] || params.name;
             }
+          },
+          select: {
+            disabled: true // 禁用选中效果
           },
           emphasis: {
             disabled: true // 禁用高亮效果
@@ -243,6 +274,8 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
           roam: true,
           zoom: zoom,
           center: provinceCenter,
+          animationDurationUpdate: 400,
+          animationEasingUpdate: 'cubicOut',
           scaleLimit: {
             min: 0.5,
             max: 10

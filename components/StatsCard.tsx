@@ -62,7 +62,7 @@ const StatsCard: React.FC<StatsCardProps> = ({ progress }) => {
   }, [progress]);
 
   return (
-    <div className="absolute top-32 left-4 right-4 z-20">
+    <div className="absolute top-24 left-4 right-4 z-20">
       <div className="bg-white/90 backdrop-blur-xl border border-white/50 shadow-glass rounded-3xl p-4 transition-all duration-300">
         
         {/* Compact Header */}
