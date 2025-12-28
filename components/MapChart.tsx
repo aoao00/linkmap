@@ -4,49 +4,14 @@ import * as topojson from 'topojson-client';
 import { Province, City, UserProgress, TravelLevel, LEVEL_CONFIG } from '../types';
 import { PROVINCE_DATA, getTopoJSONData } from '../services/geoData';
 import { ArrowLeft } from 'lucide-react';
-
-// Province full name to abbreviation mapping
-const PROVINCE_ABBR: Record<string, string> = {
-  "北京市": "京",
-  "天津市": "津",
-  "河北省": "冀",
-  "山西省": "晋",
-  "内蒙古自治区": "蒙",
-  "辽宁省": "辽",
-  "吉林省": "吉",
-  "黑龙江省": "黑",
-  "上海市": "沪",
-  "江苏省": "苏",
-  "浙江省": "浙",
-  "安徽省": "皖",
-  "福建省": "闽",
-  "江西省": "赣",
-  "山东省": "鲁",
-  "河南省": "豫",
-  "湖北省": "鄂",
-  "湖南省": "湘",
-  "广东省": "粤",
-  "广西壮族自治区": "桂",
-  "海南省": "琼",
-  "重庆市": "渝",
-  "四川省": "川",
-  "贵州省": "贵",
-  "云南省": "云",
-  "西藏自治区": "藏",
-  "陕西省": "陕",
-  "甘肃省": "甘",
-  "青海省": "青",
-  "宁夏回族自治区": "宁",
-  "新疆维吾尔自治区": "新",
-  "台湾省": "台",
-  "香港特别行政区": "港",
-  "澳门特别行政区": "澳"
-};
+import { PROVINCE_ABBR, PROVINCE_MAP, PROVINCES } from '../source/data/province-config';
 
 interface MapChartProps {
   progress: UserProgress;
   onCityClick: (city: City) => void;
 }
+
+
 
 const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
   const chartRef = useRef<HTMLDivElement>(null);
@@ -59,7 +24,6 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
       const chartInstance = echarts.init(chartRef.current);
       chartInstanceRef.current = chartInstance;
       
-      // Handle window resize
       const handleResize = () => {
         chartInstance.resize();
       };
@@ -75,61 +39,51 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
   
   // Prepare data for ECharts
   const prepareMapData = () => {
-    // Get province features from TopoJSON with type assertions
     const topoData = getTopoJSONData();
     const geoData = topojson.feature(topoData as any, topoData.objects.province as any);
     
-    // Register map with ECharts
     echarts.registerMap('china', geoData as any);
     
-// Apple 系统蓝色常量 (System Blue)
-  const APPLE_BLUE = '17, 110, 251'; 
-  // 页面底色
-  const DEFAULT_BG = '#F2F2F7';
+    const APPLE_BLUE = '17, 110, 251'; 
+    const DEFAULT_BG = '#F2F2F7';
 
-  // Prepare province data with progress
-  const provinceData = PROVINCE_DATA.map(province => {
-    let totalScore = 0;
-    const maxScore = province.cities.length * 3;
-    
-    province.cities.forEach(city => {
-      totalScore += (progress[city.id] || 0);
-    });
-    
-    const hasProgress = totalScore > 0;
-    let areaColor = DEFAULT_BG;
+    const provinceData = PROVINCE_DATA.map(province => {
+      let totalScore = 0;
+      const maxScore = province.cities.length * 3;
+      
+      province.cities.forEach(city => {
+        totalScore += (progress[city.id] || 0);
+      });
+      
+      const hasProgress = totalScore > 0;
+      let areaColor = DEFAULT_BG;
 
-    if (hasProgress) {
-      // 计算打卡强度 (0 ~ 1)
-      const intensity = totalScore / maxScore;
-      // 映射透明度：确保有分数时最小透明度为 0.2，满分为 1.0
-      const alpha = 0.2 + (intensity * 0.4);
-      areaColor = `rgba(${APPLE_BLUE}, ${alpha})`;
-    }
-    
-    return {
-      name: province.name,
-      value: totalScore,
-      itemStyle: {
-        areaColor: areaColor,
-        // 如果没有分数，使用稍深一点的灰色边框来勾勒边界
-        borderColor: hasProgress ? 'rgba(0, 122, 255, 0.4)' : "#D1D1D6",
-        borderWidth: 0.8,
-        // 增加极其细微的阴影，使地图从背景中“浮”出来，解决边界不可见问题
-        shadowColor: 'rgba(0, 0, 0, 0.05)',
-        shadowBlur: 5,
-        shadowOffsetY: 2
-      },
-      // 增加悬浮高亮逻辑，增强交互时的边界感知
-      emphasis: {
-        itemStyle: {
-          areaColor: hasProgress ? `rgba(${APPLE_BLUE}, 0.8)` : 'rgba(0, 122, 255, 0.05)',
-          borderColor: 'rgba(0, 122, 255, 0.8)',
-          borderWidth: 1.5
-        }
+      if (hasProgress) {
+        const intensity = totalScore / maxScore;
+        const alpha = 0.2 + (intensity * 0.4);
+        areaColor = `rgba(${APPLE_BLUE}, ${alpha})`;
       }
-    };
-  });
+      
+      return {
+        name: province.name,
+        value: totalScore,
+        itemStyle: {
+          areaColor: areaColor,
+          borderColor: hasProgress ? 'rgba(0, 122, 255, 0.4)' : "#D1D1D6",
+          borderWidth: 0.8,
+          shadowColor: 'rgba(0, 0, 0, 0.05)',
+          shadowBlur: 5,
+          shadowOffsetY: 2
+        },
+        emphasis: {
+          itemStyle: {
+            areaColor: hasProgress ? `rgba(${APPLE_BLUE}, 0.8)` : 'rgba(0, 122, 255, 0.05)',
+            borderColor: 'rgba(0, 122, 255, 0.8)',
+            borderWidth: 1.5
+          }
+        }
+      };
+    });
     
     return provinceData;
   };
@@ -140,9 +94,38 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
     
     const provinceData = prepareMapData();
     
+    const markLineData: any[] = [];
+    const markPointData: any[] = [];
+
+    // Generate special labels and lines from province config
+    PROVINCES.forEach(province => {
+      const config = province.specialLabelConfig;
+      if (config) {
+        const startPoint = config.coord;
+        const endPoint = [startPoint[0] + config.offset[0], startPoint[1] + config.offset[1]];
+        
+        markLineData.push([
+          { coord: startPoint },
+          { coord: endPoint }
+        ]);
+        
+        markPointData.push({
+          name: province.abbreviation,
+          coord: endPoint,
+          value: province.abbreviation, 
+          label: {
+            position: config.position
+          },
+          tooltip: {
+              formatter: province.name
+          }
+        });
+      }
+    });
+
     const option: echarts.EChartsOption = {
       tooltip: {
-        trigger: 'none' // 禁用tooltip
+        trigger: 'none'
       },
       series: [
         {
@@ -155,39 +138,83 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
           animationEasingUpdate: 'cubicOut',
           center: [104, 36],
           label: {
-            show: true,
+            show: false,
             fontSize: 10,
-            color: '#000',
-            formatter: (params: any) => {
-              // Use province abbreviation instead of full name
-              return PROVINCE_ABBR[params.name] || params.name;
-            }
+            color: '#000'
           },
-          select: {
-            disabled: true // 禁用选中效果
-          },
-          emphasis: {
-            disabled: true // 禁用高亮效果
-          },
+          select: { disabled: true },
+          emphasis: { disabled: true },
           itemStyle: {
             borderColor: '#8E8E93',
             borderWidth: 1
           },
-          data: provinceData
+          data: provinceData,
+          
+          markLine: {
+            silent: true,
+            symbol: ['none', 'none'],
+            lineStyle: {
+              color: '#333',
+              type: 'solid',
+              width: 1,
+              opacity: 0.8
+            },
+            data: markLineData,
+            animation: false 
+          },
+          
+          markPoint: {
+            silent: false,
+            symbol: 'circle',
+            symbolSize: 3,
+            cursor: 'pointer',
+            itemStyle: { color: '#333' },
+            label: {
+              show: true,
+              color: '#000',
+              fontSize: 10,
+              formatter: '{b}'
+            },
+            data: markPointData,
+            animation: false
+          }
         }
       ]
     };
     
     chartInstanceRef.current.setOption(option);
     
-    // Add province click event
     chartInstanceRef.current.off('click');
-    chartInstanceRef.current.on('click', (params: echarts.ECElementEvent) => {
-      if (params.name) {
-        const province = PROVINCE_DATA.find(p => p.name === params.name);
-        if (province) {
-          setActiveProvince(province);
+    chartInstanceRef.current.on('click', (params: any) => {
+      const targetName = params.name;
+      if (!targetName) return;
+
+      // --- 核心修改：三沙群岛点击跳转到海南省 ---
+      if (targetName.includes('三沙')) {
+        const hainanProvince = PROVINCE_DATA.find(p => p.name.includes('海南'));
+        if (hainanProvince) {
+          setActiveProvince(hainanProvince);
         }
+        return;
+      }
+
+      // --- 核心修改：如果是台湾省，直接处理为打卡点击，不进入省份地图 ---
+      if (targetName.includes('台湾')) {
+        const province = PROVINCE_DATA.find(p => p.name.includes('台湾'));
+        if (province && province.cities.length > 0) {
+          const taiwanCity = province.cities[0];
+          onCityClick(taiwanCity);
+        }
+        return; // 阻止 setActiveProvince，从而不进入下钻视图
+      }
+
+      // 其他省份正常进入下钻视图
+      const province = PROVINCE_DATA.find(p => 
+        p.name === targetName || (p.name.includes(targetName) && targetName.length > 0)
+      );
+
+      if (province) {
+        setActiveProvince(province);
       }
     });
   };
@@ -196,11 +223,9 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
   const renderProvinceMap = (province: Province) => {
     if (!chartInstanceRef.current) return;
     
-    // Get TopoJSON data with type assertions
     const topoData = getTopoJSONData();
     const geoData = topojson.feature(topoData as any, topoData.objects.province as any) as any;
     
-    // Find the specific province feature
     const provinceFeature = geoData.features.find((f: any) => f.properties.name === province.name);
     
     if (!provinceFeature) {
@@ -208,29 +233,22 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
       return;
     }
     
-    // Get province adcode for filtering cities
     const provinceAdcode = provinceFeature.properties.adcode;
     
-    // Get and filter city features for this province
     const cityFeatures = (topojson.feature(topoData as any, topoData.objects.city as any) as any).features;
     const provinceCityFeatures = cityFeatures.filter((cityFeature: any) => {
-      // Filter cities by province adcode from parent.adcode or acroutes
       const cityProvinceAdcode = cityFeature.properties.parent?.adcode || cityFeature.properties.acroutes?.[1];
       return cityProvinceAdcode === provinceAdcode;
     });
     
-    // Create a province map with cities
     const provinceMapData = {
       type: 'FeatureCollection',
       features: [...provinceCityFeatures]
     };
     
-    // Register province map with cities
     echarts.registerMap(`${province.name}-cities`, provinceMapData as any);
     
-    // Prepare city data for map series
     const cityData = provinceCityFeatures.map((cityFeature: any, cIndex: number) => {
-      // 生成与 geoData.ts 完全一致的城市ID，确保与 progress 数据匹配
       const cityId = `city-${cityFeature.properties.adcode || `${province.name}-${cIndex}`}`;
       const level = progress[cityId] || TravelLevel.Untouched;
       const color = LEVEL_CONFIG[level].color;
@@ -251,22 +269,13 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
       };
     });
     
-    // Calculate appropriate zoom and center
     const provinceCenter = provinceFeature.properties.centroid || provinceFeature.properties.center || [104, 36];
     
-    // Adjust zoom based on province size (larger provinces need smaller zoom)
-    let zoom = 3;
-    const provinceArea = province.area || 100000;
-    if (provinceArea > 500000) zoom = 1.5;
-    if (provinceArea > 1000000) zoom = 1;
-    
-    // 为青海省单独调整缩放级别，确保完整显示
-    if (province.name === '青海省') zoom = 1.2;
+    // Use configured zoom level from province config
+    const zoom = PROVINCE_MAP[province.name]?.zoom || 3;
     
     const option: echarts.EChartsOption = {
-      tooltip: {
-        trigger: 'none' // 禁用tooltip
-      },
+      tooltip: { trigger: 'none' },
       series: [
         {
           type: 'map',
@@ -276,10 +285,7 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
           center: provinceCenter,
           animationDurationUpdate: 400,
           animationEasingUpdate: 'cubicOut',
-          scaleLimit: {
-            min: 0.5,
-            max: 10
-          },
+          scaleLimit: { min: 0.5, max: 10 },
           data: cityData,
           label: {
             show: true,
@@ -292,14 +298,15 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
           itemStyle: {
             borderColor: '#fff',
             borderWidth: 1
-          }
+          },
+          markLine: { data: [] },
+          markPoint: { data: [] }
         }
       ]
     };
     
     chartInstanceRef.current.setOption(option);
     
-    // Add city click event
     chartInstanceRef.current.off('click');
     chartInstanceRef.current.on('click', (params: echarts.ECElementEvent) => {
       const data = params.data as any;
@@ -309,7 +316,6 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
     });
   };
   
-  // Update chart when activeProvince or progress changes
   useEffect(() => {
     if (activeProvince) {
       renderProvinceMap(activeProvince);
@@ -324,7 +330,6 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
 
   return (
     <div className="relative w-full h-full bg-[#F2F2F7] overflow-hidden">
-      {/* Super Large Back Button */}
       <div 
         className={`absolute bottom-32 right-6 z-30 transition-all duration-500 transform ${activeProvince ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0 pointer-events-none'}`}
       >
@@ -337,7 +342,6 @@ const MapChart: React.FC<MapChartProps> = ({ progress, onCityClick }) => {
         </button>
       </div>
 
-      {/* ECharts Container */}
       <div 
         ref={chartRef}
         className="w-full h-full"

@@ -51,6 +51,12 @@ const ListView: React.FC<ListViewProps> = ({ progress, onUpdate, onBatchUpdate, 
           const isExpanded = expandedProv === prov.id;
           const activeCities = prov.cities.filter(c => (progress[c.id] || 0) > 0).length;
           
+          // 判断是否为直辖市或特别行政区
+          const isMunicipalityOrSpecial = [
+            '北京市', '天津市', '上海市', '重庆市',
+            '香港特别行政区', '澳门特别行政区'
+          ].includes(prov.name);
+          
           return (
             <div key={prov.id} className="bg-white rounded-2xl shadow-sm overflow-hidden transition-all duration-300">
               <button 
@@ -63,7 +69,7 @@ const ListView: React.FC<ListViewProps> = ({ progress, onUpdate, onBatchUpdate, 
                   </div>
                   <div className="flex flex-col items-start">
                     <span className="text-xl font-bold text-black">{prov.name}</span>
-                    <span className="text-sm text-ios-gray">点亮 {activeCities}/{prov.cities.length} 城</span>
+                    <span className="text-sm text-ios-gray">点亮 {activeCities}/{prov.cities.length} {isMunicipalityOrSpecial ? '区' : '城'}</span>
                   </div>
                 </div>
                 {isExpanded ? <ChevronDown className="text-ios-gray" /> : <ChevronRight className="text-ios-gray" />}
@@ -76,7 +82,9 @@ const ListView: React.FC<ListViewProps> = ({ progress, onUpdate, onBatchUpdate, 
                   <div className="p-4 bg-white/90 border-b border-gray-100 backdrop-blur-xl sticky top-0 z-20 shadow-[0_4px_20px_-12px_rgba(0,0,0,0.1)]">
                     <div className="flex items-center gap-2 mb-3 px-1">
                        <Layers size={14} className="text-ios-blue" />
-                       <span className="text-xs font-bold text-ios-gray uppercase tracking-wider">全省统一设置</span>
+                       <span className="text-xs font-bold text-ios-gray uppercase tracking-wider">
+                         {[ '北京市', '天津市', '上海市', '重庆市', '香港特别行政区', '澳门特别行政区' ].includes(prov.name) ? '全市' : '全省'}统一设置
+                       </span>
                     </div>
                     {/* Unified Slider Container */}
                     <div className="flex bg-slate-100/80 rounded-xl p-1.5 gap-1.5 ring-1 ring-black/5">
